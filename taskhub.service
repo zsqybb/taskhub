@@ -1,0 +1,15 @@
+[Unit]
+Description=TaskHub Gunicorn Service
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/taskhub
+Environment="PATH=/opt/taskhub/venv/bin"
+ExecStart=/opt/taskhub/venv/bin/gunicorn app:create_app() -c gunicorn.conf.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 18mm 20mm 18mm 20mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "SimHei", sans-serif;
+    font-size: 10pt; color: #333; line-height: 1.6;
+  }
+  h1 { font-family: "SimHei", "Microsoft YaHei", sans-serif; font-size: 20pt; color: #6366f1; margin-bottom: 2px; }
+  .contact { font-size: 8.5pt; color: #666; margin-bottom: 6px; }
+  .contact span { margin-right: 18px; }
+  .objective {
+    font-size: 9.5pt; font-weight: bold; color: #6366f1; margin-bottom: 8px;
+  }
+  /* Section title — purple bar */
+  .sec-title {
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
+    font-size: 10.5pt; color: #fff; background: #6366f1;
+    padding: 3px 8px; margin: 10px 0 6px 0;
+  }
+  /* Project name */
+  .proj-name {
+    font-weight: bold; font-size: 10pt; color: #6366f1; margin-top: 7px;
+  }
+  .proj-tech { font-weight: normal; font-size: 9pt; color: #666; }
+  /* Bullet */
+  ul { list-style: none; padding-left: 0; }
+  li { font-size: 9pt; margin-bottom: 1.8px; padding-left: 12px; text-indent: -12px; }
+  li::before { content: "• "; color: #6366f1; }
+  /* Skills table */
+  .skills { margin: 4px 0; }
+  .skill-row { font-size: 9pt; margin-bottom: 2px; }
+  .skill-label { font-weight: bold; display: inline-block; width: 80px; }
+  /* Summary */
+  .summary { font-size: 9pt; }
+  .summary li { margin-bottom: 2px; }
+  .closing { text-align: center; font-size: 8pt; color: #999; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<h1>张帅谦</h1>
+<div class="contact">
+  <span>电话 19061622018</span><span>邮箱 575169919@qq.com</span><span>地址 河北省保定市</span><br>
+  <span>学校 保定理工学院 · 人工智能专业 · 本科 (2023.09 – 2027.06)</span><span>GitHub github.com/zsqybb</span>
+</div>
+
+<div class="objective">
+  求职意向：AI Agent 开发 / 大模型应用开发 / Python 全栈实习（2027届，可尽快到岗）
+</div>
+
+<!-- AI 项目实战 -->
+<div class="sec-title">AI 项目实战</div>
+<p style="font-size:9pt;">熟练使用 AI Agent 框架进行实时协作开发、全栈项目构建与智能对话系统搭建。日常使用 Claude Code / Cursor / Trae 进行 AI 辅助编程，使用 Dify / Coze 搭建 RAG 问答与图像识别工作流。</p>
+
+<!-- 项目经历 -->
+<div class="sec-title">项目经历</div>
+
+<div class="proj-name">AI Agent 基础设施研究 <span class="proj-tech">| A2A + MCP + ReAct</span></div>
+<ul>
+  <li>基于 Google A2A 协议实现多 Agent 通信系统，支持搜索/机票 Agent 间协作调度</li>
+  <li>基于 MCP Server/Client 架构，使用 FastMCP + stdio transport 实现标准化工具调用</li>
+  <li>实现 ReAct 模式 Agent（Thought → Action → Observation 循环），支持自定义工具注册与调度</li>
+</ul>
+
+<div class="proj-name">英语学习 AI 助手 <span class="proj-tech">| Python + Flask + 腾讯智慧 API + Railway</span></div>
+<ul>
+  <li>构建 SkillDispatcher 路由层，实现单词查询/语法纠错/作文批改/通用问答 4 条处理链路</li>
+  <li>OCR 图像识别准确率 90%+，部署于 Railway 云平台稳定运行</li>
+</ul>
+
+<div class="proj-name">TaskHub — 企业级项目管理协作平台 <span class="proj-tech">| Python + Flask + MySQL + Docker + Nginx</span></div>
+<ul>
+  <li>独立设计多租户数据隔离架构，所有 API 通过 owner_id 外键级联过滤，注册即创建独立工作台</li>
+  <li>设计工时加权进度算法：根据任务状态（done/review/in_progress/todo）和预估工时动态计算项目进度</li>
+  <li>实现 CSRF Token 验证 + Session 安全加固（HttpOnly/SameSite），后端输入校验防 500 错误</li>
+  <li>构建 16 个 RESTful API 端点（认证/看板/项目/任务/成本/导出），前端 Chart.js 可视化看板</li>
+  <li>编写 Docker + Gunicorn + Nginx 生产部署配置，部署至 PythonAnywhere 云端</li>
+</ul>
+
+<div class="proj-name">跨境物流方案问答系统 <span class="proj-tech">| Dify + RAG + Docker + Embedding</span></div>
+<ul>
+  <li>使用 Docker 部署 Dify 平台，搭建 RAG 知识增强 + OCR 图像识别问答流程</li>
+  <li>实现多轮对话上下文管理、答案质量验证与多级数据清洗，完成全流程测试</li>
+</ul>
+
+<div class="proj-name">法律案件智能分类系统 <span class="proj-tech">| Python + Scikit-learn + Jieba + Pandas</span></div>
+<ul>
+  <li>基于 TF-IDF 特征提取 + 多模型对比（朴素贝叶斯/SVM/逻辑回归），实现法律案件自动分类</li>
+  <li>完成数据预处理、特征工程、模型评估全流程，输出准确率/召回率/F1 指标报告</li>
+</ul>
+
+<div class="proj-name">YOLOv8 目标检测系统 <span class="proj-tech">| YOLOv8 + OpenCV + Python</span></div>
+<ul>
+  <li>完成数据集标注（500+ 张）、模型训练、超参数调优，mAP@0.5 达 85%+，推理速度 30+ FPS</li>
+</ul>
+
+<div class="proj-name">中文情感分析 <span class="proj-tech">| PaddleNLP + PyTorch + HuggingFace Transformers</span></div>
+<ul>
+  <li>实现多模型中文情感分类对比，涵盖深度学习预训练模型、规则匹配、统计分析方法</li>
+  <li>完成法律文书/社交媒体文本的多分类任务，含完整数据预处理与模型优化</li>
+</ul>
+
+<!-- Page 2 -->
+<div style="page-break-before: always;"></div>
+
+<!-- 专业技能 -->
+<div class="sec-title">专业技能</div>
+<div class="skills">
+  <div class="skill-row"><span class="skill-label">编程语言</span>Python（熟练）、C++、Java、JavaScript</div>
+  <div class="skill-row"><span class="skill-label">AI 框架</span>PyTorch · HuggingFace · PaddleNLP · Scikit-learn</div>
+  <div class="skill-row"><span class="skill-label">NLP</span>RAG · LangChain · Embedding · OCR 识别 · 情感分析 · 文本分类</div>
+  <div class="skill-row"><span class="skill-label">Agent 架构</span>ReAct · A2A · MCP · Function Calling · Skill Dispatch</div>
+  <div class="skill-row"><span class="skill-label">AI 工具</span>OpenClaw · Claude Code · Cursor · Trae · Dify · Coze</div>
+  <div class="skill-row"><span class="skill-label">计算机视觉</span>YOLOv8 · OpenCV · Stable Diffusion</div>
+  <div class="skill-row"><span class="skill-label">后端/全栈</span>Flask · MySQL · Docker · Git · Linux · Nginx · Railway</div>
+</div>
+
+<!-- 个人总结 -->
+<div class="sec-title">个人总结</div>
+<ul class="summary">
+  <li>Agent 全栈能力：熟悉 ReAct 模式、A2A 协议与 MCP 架构，具备 AI Agent 全栈开发能力</li>
+  <li>AI 工程化实践：熟练使用 OpenClaw、Claude Code、Cursor 等 AI 工具，可高效完成全流程开发</li>
+  <li>全栈开发经验：独立完成 Flask + MySQL Web 应用从架构设计到云端部署的完整闭环</li>
+  <li>快速学习能力：能独立解决开发中的实际问题，善于利用 AI 工具加速学习与开发效率</li>
+</ul>
+
+<div class="closing">感谢您花时间阅读我的简历，期待与您进一步交流！</div>
+
+</body>
+</html>
