@@ -1,6 +1,6 @@
 """数据导出蓝图 — Excel .xlsx"""
 from io import BytesIO
-from flask import Blueprint, send_file, request
+from flask import Blueprint, send_file, request, session
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from db import query
@@ -50,8 +50,9 @@ def export_projects():
         FROM project p
         LEFT JOIN team_member tm ON p.manager_id = tm.id
         LEFT JOIN task t ON t.project_id = p.id
+        WHERE p.owner_id = %s
         GROUP BY p.id ORDER BY p.created_at DESC
-    """)
+    """, [session["user_id"]])
 
     wb = Workbook()
     ws = wb.active
@@ -89,10 +90,11 @@ def export_tasks():
         FROM task t
         LEFT JOIN team_member tm ON t.assignee_id = tm.id
         JOIN project p ON t.project_id = p.id
+        WHERE p.owner_id = %s
     """
-    args = []
+    args = [session["user_id"]]
     if project_id:
-        sql += " WHERE t.project_id = %s"
+        sql += " AND t.project_id = %s"
         args.append(project_id)
     sql += " ORDER BY t.sort_order, t.id"
     rows = query(sql, args)
@@ -130,10 +132,11 @@ def export_costs():
     sql = """
         SELECT c.cost_date, c.category, c.amount, c.description, p.name AS project_name
         FROM cost c JOIN project p ON c.project_id = p.id
+        WHERE p.owner_id = %s
     """
-    args = []
+    args = [session["user_id"]]
     if project_id:
-        sql += " WHERE c.project_id = %s"
+        sql += " AND c.project_id = %s"
         args.append(project_id)
     sql += " ORDER BY c.cost_date DESC"
     rows = query(sql, args)

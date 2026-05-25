@@ -170,7 +170,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <script>
 'use strict';
 var currentUser=null,projects=[],members=[],currentView='dashboard',currentParam=null;
-var projectsPage=1,projectsSearch='',costsPage=1,isSubmitting=false,charts={};
+var projectsPage=1,projectsSearch='',costsPage=1,isSubmitting=false,charts={},csrfToken="{{ csrf_token }}"||sessionStorage.getItem("csrf_token")||"";
 
 // ========== Toast ==========
 function toast(m,t){var e=document.createElement('div');e.className='toast toast-'+(t||'error');e.textContent=m;document.body.appendChild(e);setTimeout(function(){e.remove()},3000)}
@@ -190,9 +190,10 @@ function showError(m){document.getElementById('main').innerHTML='<div class="tex
 
 // ========== API ==========
 async function api(u,o){
-  o=o||{};var h={};var hasBody=o.body&&['POST','PUT','PATCH'].indexOf(o.method)!==-1;
+  o=o||{};var h={};var method=o.method||'GET';var hasBody=o.body&&['POST','PUT','PATCH'].indexOf(method)!==-1;
   if(hasBody)h['Content-Type']='application/json';if(o.headers)Object.assign(h,o.headers);
-  var r=await fetch(u,{headers:h,method:o.method||'GET',body:o.body});
+  if(csrfToken&&['POST','PUT','PATCH','DELETE'].indexOf(method)!==-1)h['X-CSRF-Token']=csrfToken;
+  var r=await fetch(u,{headers:h,method:method,body:o.body});
   if(!r.ok){var ed=await r.json().catch(function(){return{}});throw new Error(ed.error||'HTTP '+r.status)}
   return r.json()
 }
@@ -216,7 +217,9 @@ function showModal(title,bodyHTML,onSave){
     '<button class="btn btn-primary" id="modalSaveBtn">保存</button></div>';
   document.getElementById('modalOverlay').classList.add('show');
   document.getElementById('modalSaveBtn').onclick=async function(){
-    if(isSubmitting)return;var btn=document.getElementById('modalSaveBtn'),errEl=document.getElementById('modalError');
+    if(isSubmitting)return;var form=document.getElementById('modalForm');
+    if(!form.checkValidity()){form.reportValidity();return}
+    var btn=document.getElementById('modalSaveBtn'),errEl=document.getElementById('modalError');
     errEl.textContent='';isSubmitting=true;btn.disabled=true;btn.textContent='保存中...';
     try{if(onSave)await onSave();closeModal()}catch(e){errEl.textContent='操作失败: '+e.message}
     finally{isSubmitting=false;btn.disabled=false;btn.textContent='保存'}
@@ -234,7 +237,7 @@ var ROLE_MAP={admin:'管理员',manager:'经理',member:'成员'};
 function sL(s){return STATUS_MAP[s]||s}function sLT(s){return TASK_STATUS_MAP[s]||s}
 function pB(p){return'<span class="badge badge-'+PRIORITY_MAP[p]+'"><span class="priority-dot priority-'+p+'"></span>'+PRIORITY_LABELS[p]+'</span>'}
 function cL(c){return CATEGORY_MAP[c]||c}function rL(r){return ROLE_MAP[r]||r}
-function esc(s){return(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 // ========== Pagination ==========
 function pagHTML(pg,tot,pp,fn){
@@ -341,11 +344,25 @@ async function renderProfile(){
   var myTasks=[];
   try{stats=await apiGet('/api/auth/my-stats')}catch(e){}
   try{myTasks=await apiGet('/api/auth/my-tasks')}catch(e){}
+  // Refresh currentUser to get latest member info
+  try{var me=await apiGet('/api/auth/me');if(me.logged_in)currentUser=me}catch(e){}
 
   var h='<h2>个人中心</h2>';
-  h+='<div class="flex-between mb-16"><div style="display:flex;gap:12px">';
-  h+='<button class="btn btn-outline" onclick="showProfileEdit()">✎ 修改资料</button>';
-  h+='<button class="btn btn-outline" onclick="showPasswordChange()">🔒 修改密码</button>';
+
+  // Profile info card
+  h+='<div class="panel mb-16"><div class="panel-header"><h3>个人资料</h3></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0">';
+  h+='<div><span class="text-dim">用户名：</span>'+esc(currentUser.username||'')+'</div>';
+  h+='<div><span class="text-dim">显示名称：</span>'+esc(currentUser.display_name||'')+'</div>';
+  h+='<div><span class="text-dim">团队成员：</span>'+esc(currentUser.member_name||'-')+'</div>';
+  h+='<div><span class="text-dim">邮箱：</span>'+esc(currentUser.email||'-')+'</div>';
+  h+='<div><span class="text-dim">电话：</span>'+esc(currentUser.phone||'-')+'</div>';
+  h+='<div><span class="text-dim">部门：</span>'+esc(currentUser.department||'-')+'</div>';
+  h+='<div><span class="text-dim">角色：</span><span class="badge badge-'+currentUser.role+'">'+rL(currentUser.role)+'</span></div>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px">';
+  h+='<button class="btn btn-outline btn-sm" onclick="showProfileEdit()">✎ 编辑资料</button>';
+  h+='<button class="btn btn-outline btn-sm" onclick="showPasswordChange()">🔒 修改密码</button>';
   h+='</div></div>';
 
   h+='<div class="stats">';
@@ -386,13 +403,21 @@ async function renderProfile(){
 }
 
 function showProfileEdit(){
-  var body='<div class="form-group"><label>显示名称</label><input name="display_name" value="'+esc(currentUser.display_name||'')+'" required></div>';
-  showModal('修改资料',body,async function(){
+  var body='<div class="form-group"><label>显示名称 *</label><input name="display_name" value="'+esc(currentUser.display_name||'')+'" required></div>';
+  body+='<div class="form-row"><div class="form-group"><label>团队成员姓名</label><input name="name" value="'+esc(currentUser.member_name||'')+'"></div>';
+  body+='<div class="form-group"><label>邮箱</label><input name="email" type="email" value="'+esc(currentUser.email||'')+'"></div></div>';
+  body+='<div class="form-row"><div class="form-group"><label>电话</label><input name="phone" value="'+esc(currentUser.phone||'')+'"></div>';
+  body+='<div class="form-group"><label>部门</label><input name="department" value="'+esc(currentUser.department||'')+'"></div></div>';
+  showModal('编辑资料',body,async function(){
     var f=new FormData(document.getElementById('modalForm'));
     var d=Object.fromEntries(f.entries());
-    await apiPut('/api/auth/profile',d);
-    currentUser.display_name=d.display_name;
-    document.getElementById('sidebarUserName').textContent=d.display_name;
+    var result=await apiPut('/api/auth/profile',d);
+    currentUser.display_name=result.display_name||d.display_name;
+    currentUser.member_name=result.member_name||d.name;
+    currentUser.email=result.email||d.email;
+    currentUser.phone=result.phone||d.phone;
+    currentUser.department=result.department||d.department;
+    document.getElementById('sidebarUserName').textContent=currentUser.display_name;
     toast('资料已更新','success');renderProfile();
   });
 }
@@ -655,11 +680,15 @@ async function showEditTaskForm(tid){
     body+='<div class="form-group"><label>负责人</label><select name="assignee_id"><option value="">未分配</option>';
     members.forEach(function(m){body+='<option value="'+m.id+'"'+(task.assignee_id===m.id?' selected':'')+'>'+esc(m.name)+'</option>'});
     body+='</select></div><div class="form-group"><label>预估工时 (h)</label><input name="estimated_hours" type="number" step="0.5" value="'+(task.estimated_hours||'')+'"></div></div>';
+    body+='<div class="form-row"><div class="form-group"><label>实际工时 (h)</label><input name="actual_hours" type="number" step="0.5" value="'+(task.actual_hours||'')+'"></div>';
+    body+='<div class="form-group"><label>开始日期</label><input name="start_date" type="date" value="'+(task.start_date||'')+'"></div></div>';
     body+='<div class="form-row"><div class="form-group"><label>里程碑</label><select name="milestone_id"><option value="">无</option>';
     milestones.forEach(function(m){body+='<option value="'+m.id+'"'+(task.milestone_id===m.id?' selected':'')+'>'+esc(m.name)+'</option>'});
     body+='</select></div><div class="form-group"><label>截止日期</label><input name="due_date" type="date" value="'+(task.due_date||'')+'"></div></div>';
+    body+='<input type="hidden" name="sort_order" value="'+(task.sort_order||0)+'">';
+    body+='<input type="hidden" name="completed_at" value="'+(task.completed_at||'')+'">';
     showModal('编辑任务',body,async function(){
-      var f=new FormData(document.getElementById('modalForm'));var d=cleanFormData(Object.fromEntries(f.entries()),['priority','assignee_id','milestone_id'],['estimated_hours']);
+      var f=new FormData(document.getElementById('modalForm'));var d=cleanFormData(Object.fromEntries(f.entries()),['priority','assignee_id','milestone_id','sort_order'],['estimated_hours','actual_hours']);
       await apiPut('/api/tasks/'+tid,d);toast('任务已更新','success');openTaskDetail(tid);
       if(currentView==='project-detail'&&currentParam)navigate('project-detail',currentParam)
     })
@@ -710,6 +739,7 @@ async function showTaskForm(pid){
   body+='<div class="form-group"><label>负责人</label><select name="assignee_id"><option value="">未分配</option>';
   members.forEach(function(m){body+='<option value="'+m.id+'">'+esc(m.name)+'</option>'});
   body+='</select></div><div class="form-group"><label>预估工时 (h)</label><input name="estimated_hours" type="number" step="0.5"></div></div>';
+  body+='<div class="form-row"><div class="form-group"><label>开始日期</label><input name="start_date" type="date"></div></div>';
   body+='<div class="form-row"><div class="form-group"><label>里程碑</label><select name="milestone_id"><option value="">无</option>';
   milestones.forEach(function(m){body+='<option value="'+m.id+'">'+esc(m.name)+'</option>'});
   body+='</select></div><div class="form-group"><label>截止日期</label><input name="due_date" type="date"></div></div>';

@@ -42,6 +42,7 @@ CREATE TABLE project (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
     description TEXT,
+    owner_id INT NOT NULL,
     status ENUM('planning','in_progress','completed','cancelled') NOT NULL DEFAULT 'planning',
     priority TINYINT DEFAULT 2,
     budget DECIMAL(12,2) DEFAULT 0.00,
@@ -51,6 +52,7 @@ CREATE TABLE project (
     progress DECIMAL(5,2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_id) REFERENCES user(id) ON DELETE CASCADE,
     FOREIGN KEY (manager_id) REFERENCES team_member(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -178,12 +180,12 @@ INSERT INTO team_member (id, name, email, phone, role, department, user_id) VALU
 (8, '周婷',   'zhouting@company.com',   '13800008888', 'member',  '后端组', NULL);
 
 -- 项目
-INSERT INTO project (id, name, description, status, priority, budget, start_date, end_date, manager_id, progress) VALUES
-(1, '智能CRM系统',   '企业客户关系管理系统，包含客户管理、销售漏斗、数据分析', 'in_progress', 4, 500000.00, '2026-03-01', '2026-08-31', 2, 45.00),
-(2, '数据中台建设',   '统一数据资产管理平台，整合各部门数据源',              'in_progress', 3, 800000.00, '2026-04-01', '2026-10-31', 7, 20.00),
-(3, '移动办公App',    '企业移动办公平台 iOS/Android 双端',                  'planning',    3, 350000.00, '2026-06-01', '2026-12-31', 2,  0.00),
-(4, '运维监控平台',   '服务器与微服务实时监控告警系统',                      'planning',    2, 200000.00, '2026-07-01', '2027-01-31', 7,  0.00),
-(5, '内部知识库',     '团队知识沉淀与分享平台',                              'completed',   1,  80000.00, '2026-01-01', '2026-04-30', 2, 100.00);
+INSERT INTO project (id, name, description, owner_id, status, priority, budget, start_date, end_date, manager_id, progress) VALUES
+(1, '智能CRM系统',   '企业客户关系管理系统，包含客户管理、销售漏斗、数据分析', 1, 'in_progress', 4, 500000.00, '2026-03-01', '2026-08-31', 2, 45.00),
+(2, '数据中台建设',   '统一数据资产管理平台，整合各部门数据源',              1, 'in_progress', 3, 800000.00, '2026-04-01', '2026-10-31', 7, 20.00),
+(3, '移动办公App',    '企业移动办公平台 iOS/Android 双端',                  1, 'planning',    3, 350000.00, '2026-06-01', '2026-12-31', 2,  0.00),
+(4, '运维监控平台',   '服务器与微服务实时监控告警系统',                      1, 'planning',    2, 200000.00, '2026-07-01', '2027-01-31', 7,  0.00),
+(5, '内部知识库',     '团队知识沉淀与分享平台',                              1, 'completed',   1,  80000.00, '2026-01-01', '2026-04-30', 2, 100.00);
 
 -- 里程碑（智能CRM系统）
 INSERT INTO milestone (id, project_id, name, due_date, status, sort_order) VALUES

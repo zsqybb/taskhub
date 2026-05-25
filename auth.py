@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from db import get_db, query, get_one, execute
-from decorators import login_required
+from decorators import login_required, generate_csrf_token
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -38,23 +38,25 @@ def register():
             conn.commit()
             uid = cur.lastrowid
 
-            # 尝试关联已有 team_member（按 email 模糊匹配）
-            cur.execute("SELECT id FROM team_member WHERE email=%s OR name=%s", [email, display_name])
-            tm = cur.fetchone()
-            if tm:
-                cur.execute("UPDATE team_member SET user_id=%s WHERE id=%s", [uid, tm["id"]])
-                conn.commit()
+            # 自动创建 team_member 档案
+            cur.execute(
+                "INSERT INTO team_member (name, email, role, user_id) VALUES (%s, %s, %s, %s)",
+                [display_name, email, "member", uid],
+            )
+            conn.commit()
+            member_id = cur.lastrowid
 
             session["user_id"] = uid
             session["username"] = username
             session["display_name"] = display_name
             session["role"] = "member"
-            session["member_id"] = tm["id"] if tm else None
+            session["member_id"] = member_id
 
         return jsonify({
             "ok": True, "user_id": uid, "username": username,
             "display_name": display_name, "role": "member",
-            "member_id": session.get("member_id"),
+            "member_id": member_id,
+            "csrf_token": generate_csrf_token(),
         }), 201
     finally:
         conn.close()
@@ -86,19 +88,35 @@ def login():
             session["display_name"] = user["display_name"] or user["username"]
             session["role"] = user["role"]
 
-            # 关联 team_member：优先查 user_id FK，再按邮箱或姓名匹配
+            # 关联 team_member：优先查 user_id FK，再按邮箱匹配，最后自动创建
             cur.execute("SELECT id FROM team_member WHERE user_id=%s", [user["id"]])
             tm = cur.fetchone()
             if not tm:
                 cur.execute(
-                    "SELECT id FROM team_member WHERE email=%s OR name=%s",
-                    [user["email"], user["display_name"]],
+                    "SELECT id, user_id FROM team_member WHERE email=%s",
+                    [user["email"]],
                 )
                 tm = cur.fetchone()
-                if tm:
+                if tm and (tm["user_id"] is None or tm["user_id"] == user["id"]):
                     cur.execute("UPDATE team_member SET user_id=%s WHERE id=%s", [user["id"], tm["id"]])
                     conn.commit()
-            session["member_id"] = tm["id"] if tm else None
+                elif tm and tm["user_id"] != user["id"]:
+                    tm = None  # 属于其他用户，不抢夺
+            if not tm:
+                try:
+                    cur.execute(
+                        "INSERT INTO team_member (name, email, role, user_id) VALUES (%s, %s, %s, %s)",
+                        [user["display_name"] or user["username"], user["email"], user["role"], user["id"]],
+                    )
+                    conn.commit()
+                    tm = {"id": cur.lastrowid}
+                except Exception:
+                    cur.execute("SELECT id, user_id FROM team_member WHERE email=%s", [user["email"]])
+                    tm = cur.fetchone()
+                    if tm and (tm["user_id"] is None or tm["user_id"] == user["id"]):
+                        cur.execute("UPDATE team_member SET user_id=%s WHERE id=%s", [user["id"], tm["id"]])
+                        conn.commit()
+            session["member_id"] = tm["id"]
 
         return jsonify({
             "ok": True,
@@ -107,6 +125,7 @@ def login():
             "display_name": user["display_name"] or user["username"],
             "role": user["role"],
             "member_id": session.get("member_id"),
+            "csrf_token": generate_csrf_token(),
         })
     finally:
         conn.close()
@@ -124,6 +143,10 @@ def logout():
 def me():
     if "user_id" not in session:
         return jsonify({"logged_in": False})
+    member = get_one(
+        "SELECT name, email, phone, department FROM team_member WHERE id=%s",
+        [session.get("member_id")],
+    )
     return jsonify({
         "logged_in": True,
         "user_id": session["user_id"],
@@ -131,6 +154,10 @@ def me():
         "display_name": session.get("display_name"),
         "role": session.get("role"),
         "member_id": session.get("member_id"),
+        "member_name": (member["name"] if member else None) or session.get("display_name", ""),
+        "email": (member["email"] if member else None) or "",
+        "phone": (member["phone"] if member else None) or "",
+        "department": (member["department"] if member else None) or "",
     })
 
 
@@ -144,7 +171,36 @@ def update_profile():
         return jsonify({"error": "显示名称不能为空"}), 400
     execute("UPDATE user SET display_name=%s WHERE id=%s", [display_name, session["user_id"]])
     session["display_name"] = display_name
-    return jsonify({"ok": True, "display_name": display_name})
+
+    member_id = session.get("member_id")
+    name = (data.get("name") or display_name).strip()
+    email = (data.get("email") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    department = (data.get("department") or "").strip()
+
+    if member_id:
+        # 检查 email 是否与其他 team_member 或 user 冲突
+        if email:
+            dup = get_one(
+                "SELECT id FROM team_member WHERE email=%s AND id!=%s",
+                [email, member_id],
+            )
+            if dup:
+                return jsonify({"error": "该邮箱已被其他团队成员使用"}), 409
+            dup_user = get_one(
+                "SELECT id FROM user WHERE email=%s AND id!=%s",
+                [email, session["user_id"]],
+            )
+            if dup_user:
+                return jsonify({"error": "该邮箱已被其他用户使用"}), 409
+        execute(
+            "UPDATE team_member SET name=%s, email=%s, phone=%s, department=%s WHERE id=%s",
+            [name, email, phone, department, member_id],
+        )
+    return jsonify({
+        "ok": True, "display_name": display_name,
+        "member_name": name, "email": email, "phone": phone, "department": department,
+    })
 
 
 @auth_bp.put("/api/auth/password")
@@ -215,5 +271,6 @@ def my_stats():
 @login_required
 def list_members():
     return jsonify(query(
-        "SELECT * FROM team_member WHERE status=1 ORDER BY role, id"
+        "SELECT * FROM team_member WHERE user_id=%s AND status=1 ORDER BY role, id",
+        [session["user_id"]],
     ))

@@ -66,7 +66,7 @@ body {
     <button type="submit" class="btn btn-primary" id="submitBtn">登 录</button>
   </form>
   <button class="btn btn-outline" onclick="location.href='/register'">还没有账号？立即注册</button>
-  <div class="footer">默认账号: admin / 123456</div>
+  <!-- 默认账号已移除 -->
 </div>
 
 <script>
@@ -90,6 +90,7 @@ async function handleLogin(e) {
     });
     var data = await res.json();
     if (res.ok && data.ok) {
+      if (data.csrf_token) sessionStorage.setItem('csrf_token', data.csrf_token);
       window.location.href = '/';
     } else {
       err.textContent = data.error || '登录失败';

@@ -69,3 +69,15 @@ def execute(sql, args=None):
             return cur.lastrowid
     finally:
         conn.close()
+
+
+def execute_affected(sql, args=None):
+    """UPDATE / DELETE，提交事务并返回受影响行数"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, args)
+            conn.commit()
+            return cur.rowcount
+    finally:
+        conn.close()

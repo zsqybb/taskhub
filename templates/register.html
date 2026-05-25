@@ -122,6 +122,7 @@ async function handleRegister(e) {
     });
     var data = await res.json();
     if (res.ok && data.ok) {
+      if (data.csrf_token) sessionStorage.setItem('csrf_token', data.csrf_token);
       window.location.href = '/';
     } else {
       err.textContent = data.error || '注册失败';

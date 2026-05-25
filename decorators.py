@@ -36,19 +36,6 @@ def admin_required(f):
     return decorated
 
 
-def csrf_protect(f):
-    """CSRF 保护：POST/PUT/DELETE 请求需携带 X-CSRF-Token 头"""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if request.method in ("GET", "HEAD", "OPTIONS"):
-            return f(*args, **kwargs)
-        token = request.headers.get("X-CSRF-Token")
-        if not token or not secrets.compare_digest(token, session.get("csrf_token", "")):
-            return jsonify({"error": "CSRF 校验失败"}), 403
-        return f(*args, **kwargs)
-    return decorated
-
-
 def generate_csrf_token():
     """生成 CSRF token 并存入 session"""
     if "csrf_token" not in session:

@@ -57,15 +57,23 @@ def create_app(config_overrides=None):
         # 跳过登录注册
         if request.path in ("/api/auth/login", "/api/auth/register"):
             return None
+        # 确保 CSRF token 存在
+        if "csrf_token" not in session:
+            session["csrf_token"] = secrets.token_hex(32)
         token = request.headers.get("X-CSRF-Token") or ""
-        if not secrets.compare_digest(token, session.get("csrf_token", "")):
-            return jsonify({"error": "CSRF 校验失败"}), 403
+        if not secrets.compare_digest(token, session["csrf_token"]):
+            return jsonify({"error": "CSRF 校验失败", "csrf_token": session["csrf_token"]}), 403
         return None
 
     # ── CSRF token 注入模板全局变量 ───────────────
     @app.context_processor
     def inject_csrf():
         return {"csrf_token": generate_csrf_token()}
+
+    # ── CSRF token 获取接口 ─────────────────────────
+    @app.get("/api/csrf-token")
+    def get_csrf_token():
+        return jsonify({"token": generate_csrf_token()})
 
     # 注册蓝图
     app.register_blueprint(auth_bp)
@@ -92,10 +100,25 @@ def create_app(config_overrides=None):
 
     # ── 初始化数据库 ──────────────────────────────
     @app.post("/api/init-db")
-    @admin_required
     def init_db():
+        # 如果已有用户则要求 admin 权限，否则允许首次初始化
+        from db import get_db
         try:
-            from db import get_db
+            conn = get_db()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) AS c FROM user")
+                    if cur.fetchone()["c"] > 0:
+                        if session.get("role") != "admin":
+                            conn.close()
+                            return jsonify({"error": "仅管理员可执行此操作"}), 403
+                conn.close()
+            except Exception:
+                conn.close()
+        except Exception:
+            pass
+
+        try:
             conn = get_db()
             try:
                 with conn.cursor() as cur:
@@ -118,11 +141,13 @@ def create_app(config_overrides=None):
 
                     cur.execute("""CREATE TABLE IF NOT EXISTS project (
                         id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100) NOT NULL,
-                        description TEXT, status ENUM('planning','in_progress','completed','cancelled') NOT NULL DEFAULT 'planning',
+                        description TEXT, owner_id INT NOT NULL,
+                        status ENUM('planning','in_progress','completed','cancelled') NOT NULL DEFAULT 'planning',
                         priority TINYINT DEFAULT 2, budget DECIMAL(12,2) DEFAULT 0.00,
                         start_date DATE, end_date DATE, manager_id INT, progress DECIMAL(5,2) DEFAULT 0.00,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        FOREIGN KEY (owner_id) REFERENCES user(id) ON DELETE CASCADE,
                         FOREIGN KEY (manager_id) REFERENCES team_member(id) ON DELETE SET NULL
                     ) ENGINE=InnoDB""")
 
@@ -212,12 +237,12 @@ def create_app(config_overrides=None):
 
                     cur.execute("SELECT COUNT(*) AS c FROM project")
                     if cur.fetchone()["c"] == 0:
-                        cur.execute("""INSERT INTO project (id, name, description, status, priority, budget, start_date, end_date, manager_id, progress) VALUES
-                            (1,'智能CRM系统','企业客户关系管理系统，包含客户管理、销售漏斗、数据分析','in_progress',4,500000.00,'2026-03-01','2026-08-31',2,45.00),
-                            (2,'数据中台建设','统一数据资产管理平台，整合各部门数据源','in_progress',3,800000.00,'2026-04-01','2026-10-31',7,20.00),
-                            (3,'移动办公App','企业移动办公平台 iOS/Android 双端','planning',3,350000.00,'2026-06-01','2026-12-31',2,0.00),
-                            (4,'运维监控平台','服务器与微服务实时监控告警系统','planning',2,200000.00,'2026-07-01','2027-01-31',7,0.00),
-                            (5,'内部知识库','团队知识沉淀与分享平台','completed',1,80000.00,'2026-01-01','2026-04-30',2,100.00)
+                        cur.execute("""INSERT INTO project (id, name, description, owner_id, status, priority, budget, start_date, end_date, manager_id, progress) VALUES
+                            (1,'智能CRM系统','企业客户关系管理系统，包含客户管理、销售漏斗、数据分析',1,'in_progress',4,500000.00,'2026-03-01','2026-08-31',2,45.00),
+                            (2,'数据中台建设','统一数据资产管理平台，整合各部门数据源',1,'in_progress',3,800000.00,'2026-04-01','2026-10-31',7,20.00),
+                            (3,'移动办公App','企业移动办公平台 iOS/Android 双端',1,'planning',3,350000.00,'2026-06-01','2026-12-31',2,0.00),
+                            (4,'运维监控平台','服务器与微服务实时监控告警系统',1,'planning',2,200000.00,'2026-07-01','2027-01-31',7,0.00),
+                            (5,'内部知识库','团队知识沉淀与分享平台',1,'completed',1,80000.00,'2026-01-01','2026-04-30',2,100.00)
                         """)
 
                     cur.execute("SELECT COUNT(*) AS c FROM milestone")

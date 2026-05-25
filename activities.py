@@ -33,8 +33,8 @@ def list_activities():
     project_id = request.args.get("project_id", "").strip()
 
     sql = "SELECT * FROM activity_log"
-    conditions = []
-    args = []
+    conditions = ["user_id = %s"]
+    args = [session["user_id"]]
 
     if target_type:
         conditions.append("target_type = %s")
@@ -44,8 +44,7 @@ def list_activities():
         conditions.append("target_id = %s")
         args.append(project_id)
 
-    if conditions:
-        sql += " WHERE " + " AND ".join(conditions)
+    sql += " WHERE " + " AND ".join(conditions)
     sql += " ORDER BY created_at DESC LIMIT %s"
     args.append(limit)
 
