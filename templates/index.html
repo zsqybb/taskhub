@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskHub - 项目管理与任务协作平台</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#0f1117; --sidebar-bg:#161822; --card-bg:#1a1d2e; --border:#2a2d3e;
+  --text:#e1e4ed; --text-dim:#8b8fa5; --primary:#6366f1; --primary-hover:#777bff;
+  --success:#22c55e; --warning:#f59e0b; --danger:#ef4444; --info:#3b82f6;
+  --todo:#6b7280; --in-progress:#3b82f6; --review:#f59e0b; --done:#22c55e;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Segoe UI","PingFang SC",sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+a{color:var(--primary);text-decoration:none}
+.sidebar{width:220px;background:var(--sidebar-bg);padding:20px 0;display:flex;flex-direction:column;border-right:1px solid var(--border);position:fixed;top:0;left:0;bottom:0;z-index:100;user-select:none}
+.sidebar .logo{font-size:22px;font-weight:800;padding:0 20px 20px;letter-spacing:-1px}
+.sidebar .logo span{color:var(--primary)}
+.sidebar nav{flex:1}
+.sidebar nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--text-dim);font-size:14px;transition:all .15s;border-left:3px solid transparent}
+.sidebar nav a:hover,.sidebar nav a.active{color:var(--text);background:rgba(255,255,255,.03);border-left-color:var(--primary)}
+.main{margin-left:220px;flex:1;padding:24px 28px;max-width:1300px;width:100%}
+h2{font-size:20px;margin-bottom:18px}h3{font-size:16px;margin-bottom:10px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:18px 20px;display:flex;align-items:center;gap:14px}
+.stat-card .stat-icon{font-size:28px}
+.stat-card .stat-value{font-size:26px;font-weight:700}
+.stat-card .stat-label{font-size:13px;color:var(--text-dim);margin-top:2px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.panel{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:18px}
+.panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.panel-header h3{margin:0}
+.chart-wrap{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:18px}
+.chart-wrap h3{margin-bottom:12px;font-size:15px}
+.chart-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.chart-grid .chart-wrap canvas{max-height:220px}
+.progress-bar-wrap{background:var(--border);border-radius:6px;height:8px;overflow:hidden}
+.progress-bar-fill{height:100%;border-radius:6px;transition:width .3s}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--primary-hover)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-outline:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover:not(:disabled){opacity:.85}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover:not(:disabled){opacity:.85}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--text-dim);font-weight:500;font-size:12px;text-transform:uppercase}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-todo{background:rgba(107,114,128,.2);color:var(--todo)}
+.badge-in_progress,.badge-in-progress{background:rgba(59,130,246,.2);color:var(--in-progress)}
+.badge-review{background:rgba(245,158,11,.2);color:var(--review)}
+.badge-done{background:rgba(34,197,94,.2);color:var(--done)}
+.badge-planning,.badge-pending{background:rgba(107,114,128,.2);color:var(--todo)}
+.badge-completed{background:rgba(34,197,94,.2);color:var(--done)}
+.badge-cancelled{background:rgba(239,68,68,.2);color:var(--danger)}
+.badge-admin{background:rgba(239,68,68,.2);color:#ef4444}
+.badge-manager{background:rgba(99,102,241,.2);color:var(--primary)}
+.badge-member{background:rgba(107,114,128,.2);color:var(--todo)}
+.priority-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.priority-1{background:#6b7280}.priority-2{background:#f59e0b}.priority-3{background:#ef4444}.priority-4{background:#dc2626}
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px}
+.kanban-col{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:300px}
+.kanban-col h4{font-size:13px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.kanban-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;cursor:pointer;transition:all .15s}
+.kanban-card:hover{border-color:var(--primary)}
+.kanban-card .task-title{font-size:13px;font-weight:600;margin-bottom:6px}
+.kanban-card .task-meta{display:flex;gap:10px;font-size:11px;color:var(--text-dim);flex-wrap:wrap}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;justify-content:center;align-items:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:24px;width:540px;max-height:85vh;overflow-y:auto}
+.modal h3{margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:4px;font-weight:500}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none;font-family:inherit}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:var(--primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.form-row{display:flex;gap:12px}.form-row .form-group{flex:1}
+.search-bar{display:flex;gap:8px;align-items:center}
+.search-bar input{padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none;width:200px}
+.search-bar input:focus{border-color:var(--primary)}
+.search-bar select{padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none}
+.pagination{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:16px;flex-wrap:wrap}
+.pagination button{padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;cursor:pointer;transition:all .15s}
+.pagination button:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.pagination button:disabled{opacity:.4;cursor:default}
+.pagination button.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.pagination .page-info{font-size:12px;color:var(--text-dim);padding:0 8px}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.mt-16{margin-top:16px}.mb-16{margin-bottom:16px}
+.text-dim{color:var(--text-dim);font-size:12px}
+.empty{text-align:center;color:var(--text-dim);padding:40px;font-size:13px}
+.hidden{display:none!important}
+.text-error{color:var(--danger);text-align:center;padding:40px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{padding:8px 18px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-dim);transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.comment-item{padding:10px 0;border-bottom:1px solid var(--border)}
+.comment-item .cmt-author{font-weight:600;font-size:12px;margin-bottom:3px}
+.comment-item .cmt-time{font-size:11px;color:var(--text-dim)}
+.comment-item .cmt-body{font-size:13px;margin-top:4px}
+.task-detail{display:none;position:fixed;right:0;top:0;bottom:0;width:440px;background:var(--card-bg);border-left:1px solid var(--border);z-index:150;padding:24px;overflow-y:auto;box-shadow:-4px 0 20px rgba(0,0,0,.3)}
+.task-detail.show{display:block}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.badge-low{background:rgba(107,114,128,.2);color:#6b7280}
+.badge-medium{background:rgba(245,158,11,.2);color:#f59e0b}
+.badge-high{background:rgba(239,68,68,.2);color:#ef4444}
+.badge-urgent{background:rgba(239,68,68,.3);color:#fca5a5}
+.progress-done{background:var(--done)}
+.progress-active{background:var(--in-progress)}
+.progress-warn{background:var(--warning)}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;animation:fadeIn .3s;max-width:400px}
+.toast-error{background:rgba(239,68,68,.9);color:#fff}
+.toast-success{background:rgba(34,197,94,.9);color:#fff}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.modal-error{color:var(--danger);font-size:13px;margin-bottom:12px;min-height:20px}
+
+/* Activity feed */
+.activity-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px}
+.activity-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;background:var(--primary)}
+.activity-time{font-size:11px;color:var(--text-dim);white-space:nowrap}
+
+/* Calendar */
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.calendar .day-header{font-size:11px;color:var(--text-dim);padding:8px 0;font-weight:600}
+.calendar .day{background:var(--bg);border-radius:6px;padding:6px 4px;min-height:60px;font-size:12px;cursor:default;position:relative}
+.calendar .day .day-num{font-weight:600;margin-bottom:2px}
+.calendar .day .day-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin:1px}
+.calendar .day.today{border:1px solid var(--primary)}
+.calendar .day.other-month{opacity:.3}
+.calendar .day.has-tasks{background:rgba(99,102,241,.08)}
+.dot-done{background:var(--done)}.dot-in_progress{background:var(--in-progress)}.dot-review{background:var(--review)}.dot-todo{background:var(--todo)}.dot-overdue{background:var(--danger)}.dot-milestone{background:var(--warning);width:8px!important;height:8px!important}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">Task<span>Hub</span></div>
+  <nav>
+    <a href="#" class="active" data-view="dashboard">■ 工作台</a>
+    <a href="#" data-view="projects">☰ 项目管理</a>
+    <a href="#" data-view="costs">★ 成本管理</a>
+    <a href="#" data-view="members">☺ 团队成员</a>
+    <a href="#" data-view="profile">👤 个人中心</a>
+  </nav>
+  <div style="padding:12px 20px;border-top:1px solid var(--border);margin-top:auto">
+    <div style="font-size:13px;font-weight:600" id="sidebarUserName">...</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      <span class="badge badge-member" id="sidebarUserRole" style="font-size:11px">...</span>
+      <a href="#" onclick="handleLogout();return false" style="font-size:12px;color:var(--text-dim)">退出</a>
+    </div>
+  </div>
+</aside>
+
+<main class="main" id="main"><div class="spinner"></div></main>
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+<div class="task-detail" id="taskDetail"></div>
+
+<script>
+'use strict';
+var currentUser=null,projects=[],members=[],currentView='dashboard',currentParam=null;
+var projectsPage=1,projectsSearch='',costsPage=1,isSubmitting=false,charts={};
+
+// ========== Toast ==========
+function toast(m,t){var e=document.createElement('div');e.className='toast toast-'+(t||'error');e.textContent=m;document.body.appendChild(e);setTimeout(function(){e.remove()},3000)}
+
+// ========== Navigation ==========
+document.querySelectorAll('.sidebar nav a').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();navigate(this.dataset.view)})});
+function navigate(v,p){
+  currentView=v;currentParam=p;
+  document.querySelectorAll('.sidebar nav a').forEach(function(a){a.classList.remove('active')});
+  var n=document.querySelector('.sidebar nav a[data-view="'+v+'"]');if(n)n.classList.add('active');
+  showLoading();
+  var h={dashboard:renderDashboard,projects:renderProjects,'project-detail':function(){renderProjectDetail(p)},costs:renderCosts,members:renderMembers,profile:renderProfile};
+  if(h[v])h[v]();else renderDashboard();
+}
+function showLoading(){document.getElementById('main').innerHTML='<div class="spinner"></div>'}
+function showError(m){document.getElementById('main').innerHTML='<div class="text-error">⚠ '+m+'</div>'}
+
+// ========== API ==========
+async function api(u,o){
+  o=o||{};var h={};var hasBody=o.body&&['POST','PUT','PATCH'].indexOf(o.method)!==-1;
+  if(hasBody)h['Content-Type']='application/json';if(o.headers)Object.assign(h,o.headers);
+  var r=await fetch(u,{headers:h,method:o.method||'GET',body:o.body});
+  if(!r.ok){var ed=await r.json().catch(function(){return{}});throw new Error(ed.error||'HTTP '+r.status)}
+  return r.json()
+}
+function apiGet(u){return api(u)}function apiPost(u,d){return api(u,{method:'POST',body:JSON.stringify(d)})}
+function apiPut(u,d){return api(u,{method:'PUT',body:JSON.stringify(d)})}
+function apiDelete(u){return api(u,{method:'DELETE'})}
+
+// ========== Form helper ==========
+function cleanFormData(d,ints,floats){
+  ints=ints||[];floats=floats||[];var c={};
+  for(var k in d){var v=d[k];if(v===''||v===undefined)c[k]=null;else if(ints.indexOf(k)!==-1&&v!==null)c[k]=parseInt(v)||null;else if(floats.indexOf(k)!==-1&&v!==null)c[k]=parseFloat(v)||null;else c[k]=v}
+  return c
+}
+
+// ========== Modal ==========
+function showModal(title,bodyHTML,onSave){
+  document.getElementById('modalContent').innerHTML=
+    '<h3>'+title+'</h3><div class="modal-error" id="modalError"></div>'+
+    '<form id="modalForm" onsubmit="return false">'+bodyHTML+'</form>'+
+    '<div class="flex-between mt-16"><button class="btn btn-outline" onclick="closeModal()">取消</button>'+
+    '<button class="btn btn-primary" id="modalSaveBtn">保存</button></div>';
+  document.getElementById('modalOverlay').classList.add('show');
+  document.getElementById('modalSaveBtn').onclick=async function(){
+    if(isSubmitting)return;var btn=document.getElementById('modalSaveBtn'),errEl=document.getElementById('modalError');
+    errEl.textContent='';isSubmitting=true;btn.disabled=true;btn.textContent='保存中...';
+    try{if(onSave)await onSave();closeModal()}catch(e){errEl.textContent='操作失败: '+e.message}
+    finally{isSubmitting=false;btn.disabled=false;btn.textContent='保存'}
+  };
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('show')}
+
+// ========== Labels ==========
+var STATUS_MAP={planning:'规划中',in_progress:'进行中',completed:'已完成',cancelled:'已取消',pending:'待开始'};
+var TASK_STATUS_MAP={todo:'待办',in_progress:'进行中',review:'评审中',done:'已完成'};
+var PRIORITY_MAP={1:'low',2:'medium',3:'high',4:'urgent'};
+var PRIORITY_LABELS={1:'低',2:'中',3:'高',4:'紧急'};
+var CATEGORY_MAP={labor:'人力',equipment:'设备',software:'软件',travel:'差旅',other:'其他'};
+var ROLE_MAP={admin:'管理员',manager:'经理',member:'成员'};
+function sL(s){return STATUS_MAP[s]||s}function sLT(s){return TASK_STATUS_MAP[s]||s}
+function pB(p){return'<span class="badge badge-'+PRIORITY_MAP[p]+'"><span class="priority-dot priority-'+p+'"></span>'+PRIORITY_LABELS[p]+'</span>'}
+function cL(c){return CATEGORY_MAP[c]||c}function rL(r){return ROLE_MAP[r]||r}
+function esc(s){return(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// ========== Pagination ==========
+function pagHTML(pg,tot,pp,fn){
+  var tp=Math.ceil(tot/pp)||1;if(tp<=1)return'';
+  var h='<div class="pagination">';
+  h+='<button onclick="'+fn+'(1)"'+(pg<=1?' disabled':'')+'>首页</button>';
+  h+='<button onclick="'+fn+'('+(pg-1)+')"'+(pg<=1?' disabled':'')+'>上一页</button>';
+  var s=Math.max(1,pg-2),e=Math.min(tp,pg+2);
+  if(s>1)h+='<button disabled>...</button>';
+  for(var i=s;i<=e;i++)h+='<button onclick="'+fn+'('+i+')" class="'+(i===pg?'active':'')+'">'+i+'</button>';
+  if(e<tp)h+='<button disabled>...</button>';
+  h+='<button onclick="'+fn+'('+(pg+1)+')"'+(pg>=tp?' disabled':'')+'>下一页</button>';
+  h+='<button onclick="'+fn+'('+tp+')"'+(pg>=tp?' disabled':'')+'>末页</button>';
+  h+='<span class="page-info">共 '+tot+' 条</span></div>';return h
+}
+
+// ========== Dashboard ==========
+function destroyCharts(){
+  for(var k in charts){if(charts[k])charts[k].destroy();delete charts[k]}
+}
+async function renderDashboard(){
+  try{
+    destroyCharts();
+    var d=await apiGet('/api/dashboard');
+    var acts=[];try{acts=await apiGet('/api/activities?limit=15')}catch(e){}
+    var pc=function(p){if(p>=80)return'progress-done';if(p>=40)return'progress-active';return'progress-warn'};
+
+    var h='<h2>工作台</h2>';
+    // Stats
+    h+='<div class="stats">';
+    h+=sC('📋',d.total_projects,'项目总数')+sC('⚡',d.active_projects,'进行中项目');
+    h+=sC('✅',d.done_tasks+'/'+d.total_tasks,'已完成/总任务');
+    h+=sC('💰',((d.total_cost||0)/10000).toFixed(1)+'万','总成本');
+    h+='</div>';
+
+    // Charts row
+    h+='<div class="chart-grid">';
+    h+='<div class="chart-wrap"><h3>任务状态分布</h3><canvas id="chartTaskStatus"></canvas></div>';
+    h+='<div class="chart-wrap"><h3>成本分类</h3><canvas id="chartCostCat"></canvas></div>';
+    h+='<div class="chart-wrap"><h3>项目进度</h3><canvas id="chartProject"></canvas></div>';
+    h+='</div>';
+
+    // Bottom row: project progress + workload + activity
+    h+='<div class="panels">';
+    h+='<div class="panel"><div class="panel-header"><h3>项目进度</h3></div>';
+    (d.project_progress||[]).forEach(function(p){h+=pR(p,pc)});
+    h+='</div>';
+    h+='<div class="panel"><div class="panel-header"><h3>成员负载</h3></div>';
+    (d.workload||[]).forEach(function(w){h+=wR(w)});
+    h+='</div></div>';
+
+    // Activity feed
+    if(acts.length>0){
+      h+='<div class="panel mt-16"><div class="panel-header"><h3>最近活动</h3></div>';
+      acts.forEach(function(a){h+=aR(a)});
+      h+='</div>';
+    }
+
+    document.getElementById('main').innerHTML=h;
+
+    // Render charts
+    setTimeout(function(){
+      var tsc=d.task_status_chart||[];
+      var ccc=d.cost_category_chart||[];
+      var pjc=d.project_chart||[];
+      renderChart_taskStatus(tsc);
+      renderChart_costCat(ccc);
+      renderChart_project(pjc);
+    },100);
+  }catch(e){showError('加载工作台失败: '+e.message)}
+}
+
+function sC(i,v,l){return'<div class="stat-card"><div class="stat-icon">'+i+'</div><div><div class="stat-value">'+v+'</div><div class="stat-label">'+l+'</div></div></div>'}
+function pR(p,pc){return'<div style="margin-bottom:12px"><div class="flex-between" style="margin-bottom:4px"><span style="font-size:13px">'+esc(p.name)+'</span><span class="text-dim">'+(p.progress||0)+'% ('+(p.done_count||0)+'/'+(p.task_count||0)+')</span></div><div class="progress-bar-wrap"><div class="progress-bar-fill '+pc(p.progress||0)+'" style="width:'+(p.progress||0)+'%"></div></div></div>'}
+function wR(w){return'<div class="flex-between" style="padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px">'+esc(w.name)+'</span><span class="badge badge-in_progress">'+w.task_count+' 个待处理</span></div>'}
+function aR(a){var t=a.created_at||'';return'<div class="activity-item"><div class="activity-dot"></div><div><span>'+esc(a.description||a.action)+'</span><div class="activity-time">'+t.substring(0,16)+'</div></div></div>'}
+
+function renderChart_taskStatus(data){
+  var ctx=document.getElementById('chartTaskStatus');if(!ctx)return;
+  var labels=[],values=[],colors=[],map={todo:'#6b7280',in_progress:'#3b82f6',review:'#f59e0b',done:'#22c55e'};
+  var labelMap={todo:'待办',in_progress:'进行中',review:'评审中',done:'已完成'};
+  data.forEach(function(d){labels.push(labelMap[d.status]||d.status);values.push(d.count);colors.push(map[d.status]||'#888')});
+  charts.taskStatus=new Chart(ctx,{type:'doughnut',data:{labels:labels,datasets:[{data:values,backgroundColor:colors,borderColor:'#1a1d2e',borderWidth:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#8b8fa5',padding:12,font:{size:11}}}}}});
+}
+
+function renderChart_costCat(data){
+  var ctx=document.getElementById('chartCostCat');if(!ctx)return;
+  var labels=[],values=[],cmap={labor:'人力',equipment:'设备',software:'软件',travel:'差旅',other:'其他'};
+  data.forEach(function(d){labels.push(cmap[d.category]||d.category);values.push(d.total)});
+  charts.costCat=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{data:values,backgroundColor:'#6366f1',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b8fa5'}},y:{ticks:{color:'#8b8fa5',callback:function(v){return(v/10000).toFixed(0)+'万'}}}}}});
+}
+
+function renderChart_project(data){
+  var ctx=document.getElementById('chartProject');if(!ctx)return;
+  var labels=[],values=[],colors=[];
+  data.forEach(function(d){labels.push(d.name.length>8?d.name.substring(0,8)+'...':d.name);values.push(d.progress);colors.push(d.progress>=80?'#22c55e':d.progress>=40?'#6366f1':'#f59e0b')});
+  charts.project=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{data:values,backgroundColor:colors,borderRadius:6}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{max:100,ticks:{color:'#8b8fa5',callback:function(v){return v+'%'}}},y:{ticks:{color:'#8b8fa5',font:{size:10}}}}}});
+}
+
+// ========== Profile ==========
+async function renderProfile(){
+  await ensureMembers();
+  var stats={total_hours:0,log_count:0,task_count:0,recent_logs:[]};
+  var myTasks=[];
+  try{stats=await apiGet('/api/auth/my-stats')}catch(e){}
+  try{myTasks=await apiGet('/api/auth/my-tasks')}catch(e){}
+
+  var h='<h2>个人中心</h2>';
+  h+='<div class="flex-between mb-16"><div style="display:flex;gap:12px">';
+  h+='<button class="btn btn-outline" onclick="showProfileEdit()">✎ 修改资料</button>';
+  h+='<button class="btn btn-outline" onclick="showPasswordChange()">🔒 修改密码</button>';
+  h+='</div></div>';
+
+  h+='<div class="stats">';
+  h+=sC('📋',myTasks.length,'待处理任务');
+  h+=sC('⏱',(stats.total_hours||0).toFixed(1)+'h','总工时');
+  h+=sC('📝',stats.log_count,'工时记录数');
+  h+=sC('✅',stats.task_count,'关联任务数');
+  h+='</div>';
+
+  // My tasks
+  h+='<div class="panel mb-16"><div class="panel-header"><h3>我的待办任务</h3></div>';
+  if(myTasks.length===0)h+='<div class="empty">暂无待办任务</div>';
+  else{
+    h+='<table><thead><tr><th>任务</th><th>项目</th><th>状态</th><th>优先级</th><th>截止日期</th></tr></thead><tbody>';
+    myTasks.forEach(function(t){
+      h+='<tr><td><a href="#" onclick="openTaskDetail('+t.id+');return false" style="font-weight:600">'+esc(t.title)+'</a></td>';
+      h+='<td>'+esc(t.project_name)+'</td>';
+      h+='<td><span class="badge badge-'+t.status+'">'+sLT(t.status)+'</span></td>';
+      h+='<td>'+pB(t.priority)+'</td><td>'+(t.due_date||'-')+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  }
+  h+='</div>';
+
+  // Recent worklogs
+  h+='<div class="panel"><div class="panel-header"><h3>最近工时记录</h3></div>';
+  if(stats.recent_logs.length===0)h+='<div class="empty">暂无记录</div>';
+  else{
+    h+='<table><thead><tr><th>日期</th><th>任务</th><th>工时</th><th>说明</th></tr></thead><tbody>';
+    stats.recent_logs.forEach(function(l){
+      h+='<tr><td>'+l.log_date+'</td><td>'+esc(l.task_title)+'</td><td>'+l.hours+'h</td><td>'+esc(l.description||'-')+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  }
+  h+='</div>';
+
+  document.getElementById('main').innerHTML=h;
+}
+
+function showProfileEdit(){
+  var body='<div class="form-group"><label>显示名称</label><input name="display_name" value="'+esc(currentUser.display_name||'')+'" required></div>';
+  showModal('修改资料',body,async function(){
+    var f=new FormData(document.getElementById('modalForm'));
+    var d=Object.fromEntries(f.entries());
+    await apiPut('/api/auth/profile',d);
+    currentUser.display_name=d.display_name;
+    document.getElementById('sidebarUserName').textContent=d.display_name;
+    toast('资料已更新','success');renderProfile();
+  });
+}
+
+function showPasswordChange(){
+  var body='<div class="form-group"><label>原密码</label><input name="old_password" type="password" required></div>';
+  body+='<div class="form-group"><label>新密码</label><input name="new_password" type="password" required minlength="6"></div>';
+  body+='<div class="form-group"><label>确认新密码</label><input name="new_password2" type="password" required minlength="6"></div>';
+  body+='<div class="text-dim">密码长度不少于6位</div>';
+  showModal('修改密码',body,async function(){
+    var f=new FormData(document.getElementById('modalForm'));
+    var d=Object.fromEntries(f.entries());
+    if(d.new_password!==d.new_password2){throw new Error('两次输入的密码不一致')}
+    await apiPut('/api/auth/password',{old_password:d.old_password,new_password:d.new_password});
+    toast('密码已更新，下次登录生效','success');
+  });
+}
+
+// ========== Projects (with export) ==========
+async function renderProjects(pg,srch){
+  if(pg===undefined)pg=projectsPage;if(srch===undefined)srch=projectsSearch;projectsPage=pg;projectsSearch=srch;
+  try{
+    var params='?page='+pg+'&per_page=20';if(srch)params+='&search='+encodeURIComponent(srch);
+    var res=await apiGet('/api/projects'+params);projects=res.data||[];members=await apiGet('/api/members');
+    var h='<div class="flex-between mb-16"><h2>项目管理</h2><div class="search-bar">';
+    h+='<input type="text" id="projectSearch" placeholder="搜索项目..." value="'+esc(srch||'')+'" onkeydown="if(event.key===\'Enter\')renderProjects(1,this.value)">';
+    h+='<button class="btn btn-outline btn-sm" onclick="renderProjects(1,document.getElementById(\'projectSearch\').value)">搜索</button>';
+    if(srch)h+='<button class="btn btn-outline btn-sm" onclick="renderProjects(1,\'\')">清除</button>';
+    h+='<button class="btn btn-primary btn-sm" onclick="showProjectForm()">+ 新建项目</button>';
+    h+='<button class="btn btn-success btn-sm" onclick="window.open(\'/api/export/projects\')">📥 导出Excel</button></div></div>';
+    h+='<table><thead><tr><th>项目名称</th><th>状态</th><th>优先级</th><th>预算</th><th>进度</th><th>负责人</th><th>截止日期</th><th>操作</th></tr></thead><tbody>';
+    if(projects.length===0)h+='<tr><td colspan="8" class="empty">暂无项目</td></tr>';
+    else projects.forEach(function(p){h+=projRow(p)});
+    h+='</tbody></table>'+pagHTML(pg,res.total,20,'renderProjects');
+    document.getElementById('main').innerHTML=h;
+  }catch(e){showError('加载项目列表失败: '+e.message)}
+}
+
+function projRow(p){
+  var h='<tr>';
+  h+='<td><a href="#" onclick="navigate(\'project-detail\','+p.id+');return false" style="font-weight:600">'+esc(p.name)+'</a></td>';
+  h+='<td><span class="badge badge-'+p.status+'">'+sL(p.status)+'</span></td>';
+  h+='<td>'+pB(p.priority)+'</td>';
+  h+='<td>'+((p.budget||0)/10000).toFixed(1)+'万</td>';
+  h+='<td style="display:flex;align-items:center;gap:8px"><div class="progress-bar-wrap" style="width:80px"><div class="progress-bar-fill" style="width:'+(p.progress||0)+'%"></div></div><span class="text-dim">'+(p.progress||0)+'%</span></td>';
+  h+='<td>'+esc(p.manager_name||'-')+'</td><td>'+(p.end_date||'-')+'</td>';
+  h+='<td><button class="btn btn-outline btn-sm" onclick="showProjectForm('+p.id+')">编辑</button> <button class="btn btn-danger btn-sm" onclick="deleteProject('+p.id+')">删除</button></td></tr>';
+  return h
+}
+
+async function ensureMembers(){if(members.length===0){try{members=await apiGet('/api/members')}catch(e){}}}
+
+async function showProjectForm(pid){
+  await ensureMembers();var p=null;
+  if(pid){try{p=await apiGet('/api/projects/'+pid)}catch(e){toast('加载项目信息失败: '+e.message);return}}
+  var title=p?'编辑项目':'新建项目',body='';
+  body+='<div class="form-group"><label>项目名称</label><input name="name" value="'+esc(p?p.name:'')+'" required></div>';
+  body+='<div class="form-group"><label>描述</label><textarea name="description">'+esc(p?(p.description||''):'')+'</textarea></div>';
+  body+='<div class="form-row"><div class="form-group"><label>状态</label><select name="status">';
+  ['planning','in_progress','completed','cancelled'].forEach(function(s){body+='<option value="'+s+'"'+(p&&p.status===s?' selected':'')+'>'+sL(s)+'</option>'});
+  body+='</select></div><div class="form-group"><label>优先级</label><select name="priority">';
+  [1,2,3,4].forEach(function(i){var sel=p?(p.priority===i?' selected':''):(i===2?' selected':'');body+='<option value="'+i+'"'+sel+'>'+PRIORITY_LABELS[i]+'</option>'});
+  body+='</select></div></div><div class="form-row">';
+  body+='<div class="form-group"><label>预算 (元)</label><input name="budget" type="number" step="0.01" value="'+(p?(p.budget||0):0)+'"></div>';
+  body+='<div class="form-group"><label>负责人</label><select name="manager_id"><option value="">-- 选择 --</option>';
+  members.forEach(function(m){body+='<option value="'+m.id+'"'+(p&&p.manager_id===m.id?' selected':'')+'>'+esc(m.name)+'</option>'});
+  body+='</select></div></div><div class="form-row">';
+  body+='<div class="form-group"><label>开始日期</label><input name="start_date" type="date" value="'+(p?(p.start_date||''):'')+'"></div>';
+  body+='<div class="form-group"><label>截止日期</label><input name="end_date" type="date" value="'+(p?(p.end_date||''):'')+'"></div></div>';
+  showModal(title,body,async function(){
+    var f=new FormData(document.getElementById('modalForm'));var d=cleanFormData(Object.fromEntries(f.entries()),['priority','manager_id'],['budget']);
+    var url=pid?'/api/projects/'+pid:'/api/projects',method=pid?'PUT':'POST';
+    await api(url,{method:method,body:JSON.stringify(d)});
+    toast(pid?'项目已更新':'项目已创建','success');renderProjects()
+  })
+}
+
+async function deleteProject(pid){
+  if(!confirm('确定删除此项目？所有关联数据将被永久删除。'))return;
+  try{await apiDelete('/api/projects/'+pid);toast('项目已删除','success');renderProjects()}catch(e){toast('删除失败: '+e.message)}
+}
+
+// ========== Project Detail (kanban + milestones + calendar + worklogs) ==========
+async function renderProjectDetail(pid){
+  try{
+    var results=await Promise.all([apiGet('/api/projects/'+pid),apiGet('/api/tasks?project_id='+pid+'&per_page=100'),apiGet('/api/milestones?project_id='+pid)]);
+    var project=results[0],tasksRes=results[1],tasks=Array.isArray(tasksRes)?tasksRes:(tasksRes.data||[]),milestones=results[2];
+    await ensureMembers();
+    var cols=['todo','in_progress','review','done'],colLabels=['待办','进行中','评审中','已完成'];
+    var today=new Date().toISOString().substring(0,10);
+
+    var h='<div class="flex-between mb-16"><div><a href="#" onclick="navigate(\'projects\');return false" style="color:var(--text-dim);font-size:13px">← 返回项目列表</a>';
+    h+='<h2 style="margin-top:4px">'+esc(project.name)+'</h2></div>';
+    h+='<div style="display:flex;gap:8px">';
+    h+='<button class="btn btn-primary btn-sm" onclick="showTaskForm('+pid+')">+ 新建任务</button>';
+    h+='<button class="btn btn-outline btn-sm" onclick="document.getElementById(\'taskSearchBar\').classList.toggle(\'hidden\')">🔍 搜索</button>';
+    h+='<button class="btn btn-success btn-sm" onclick="window.open(\'/api/export/tasks?project_id='+pid+'\')">📥 导出任务</button></div></div>';
+
+    h+='<div class="flex-between mb-16 text-dim" style="margin-top:-10px"><span>'+sL(project.status)+' · 预算 '+((project.budget||0)/10000).toFixed(1)+'万 · 截止 '+(project.end_date||'未设定')+'</span><span>负责人: '+esc(project.manager_name||'未指定')+'</span></div>';
+
+    h+='<div id="taskSearchBar" class="hidden mb-16"><div class="search-bar" style="flex-wrap:wrap">';
+    h+='<input type="text" id="taskSearchInput" placeholder="搜索任务..." onkeydown="if(event.key===\'Enter\')filterProjectTasks('+pid+')">';
+    h+='<select id="taskStatusFilter"><option value="">全部状态</option><option value="todo">待办</option><option value="in_progress">进行中</option><option value="review">评审中</option><option value="done">已完成</option></select>';
+    h+='<select id="taskAssigneeFilter"><option value="">全部成员</option>';
+    members.forEach(function(m){h+='<option value="'+m.id+'">'+esc(m.name)+'</option>'});
+    h+='</select><button class="btn btn-outline btn-sm" onclick="filterProjectTasks('+pid+')">筛选</button>';
+    h+='<button class="btn btn-outline btn-sm" onclick="navigate(\'project-detail\','+pid+')">清除</button></div></div>';
+
+    h+='<div class="tabs"><div class="tab active" data-tab="kanban">看板视图</div>';
+    h+='<div class="tab" data-tab="milestones">里程碑 ('+milestones.length+')</div>';
+    h+='<div class="tab" data-tab="calendar">📅 日历</div>';
+    h+='<div class="tab" data-tab="worklogs">工时记录</div></div>';
+
+    h+='<div id="tabKanban">'+buildKanban(tasks,cols,colLabels)+'</div>';
+    h+='<div id="tabMilestones" class="hidden">';
+    if(milestones.length===0)h+='<div class="empty">暂无里程碑</div>';
+    else milestones.forEach(function(m){
+      h+='<div class="flex-between" style="padding:12px;background:var(--bg);border-radius:8px;margin-bottom:8px">';
+      h+='<div><strong>'+esc(m.name)+'</strong><div class="text-dim">'+esc(m.description||'')+' · 截止 '+(m.due_date||'未设定')+'</div></div>';
+      h+='<span class="badge badge-'+(m.status||'').replace('_','-')+'">'+sL(m.status)+'</span></div>'
+    });
+    h+='</div>';
+
+    // Calendar
+    h+='<div id="tabCalendar" class="hidden">'+buildCalendar(tasks,milestones)+'</div>';
+    h+='<div id="tabWorklogs" class="hidden"><div class="empty">点击任务卡片查看工时详情</div></div>';
+
+    document.getElementById('main').innerHTML=h;
+    document.querySelectorAll('.tab').forEach(function(tab){
+      tab.addEventListener('click',function(){
+        document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+        tab.classList.add('active');var t=tab.dataset.tab;
+        document.getElementById('tabKanban').classList.toggle('hidden',t!=='kanban');
+        document.getElementById('tabMilestones').classList.toggle('hidden',t!=='milestones');
+        document.getElementById('tabCalendar').classList.toggle('hidden',t!=='calendar');
+        document.getElementById('tabWorklogs').classList.toggle('hidden',t!=='worklogs')
+      })
+    })
+  }catch(e){showError('加载项目详情失败: '+e.message)}
+}
+
+function buildKanban(tasks,cols,labels){
+  var h='<div class="kanban">';
+  cols.forEach(function(col,i){
+    var ct=tasks.filter(function(t){return t.status===col}),cc=col.replace('_','-');
+    h+='<div class="kanban-col"><h4 style="color:var(--'+cc+')">'+labels[i]+' ('+ct.length+')</h4>';
+    ct.forEach(function(t){
+      h+='<div class="kanban-card" onclick="openTaskDetail('+t.id+')"><div class="task-title">'+esc(t.title)+'</div><div class="task-meta">';
+      if(t.assignee_name)h+='<span>☺ '+esc(t.assignee_name)+'</span>';
+      if(t.priority>=3)h+=pB(t.priority);if(t.estimated_hours)h+='<span>'+t.estimated_hours+'h</span>';
+      h+='</div></div>'
+    });
+    if(ct.length===0)h+='<div class="empty">暂无任务</div>';h+='</div>'
+  });h+='</div>';return h
+}
+
+async function filterProjectTasks(pid){
+  try{
+    var srch=document.getElementById('taskSearchInput').value.trim();
+    var status=document.getElementById('taskStatusFilter').value;
+    var assignee=document.getElementById('taskAssigneeFilter').value;
+    var params='?project_id='+pid+'&per_page=100';
+    if(srch)params+='&search='+encodeURIComponent(srch);
+    if(status)params+='&status='+status;if(assignee)params+='&assignee_id='+assignee;
+    var res=await apiGet('/api/tasks'+params);var tasks=Array.isArray(res)?res:(res.data||[]);
+    document.getElementById('tabKanban').innerHTML=buildKanban(tasks,['todo','in_progress','review','done'],['待办','进行中','评审中','已完成'])
+  }catch(e){toast('筛选失败: '+e.message)}
+}
+
+// ========== Calendar ==========
+function buildCalendar(tasks,milestones){
+  var now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  var firstDay=new Date(y,m,1),lastDay=new Date(y,m+1,0);
+  var startDow=firstDay.getDay();// 0=Sun
+  var today=new Date().toISOString().substring(0,10);
+  var dayNames=['日','一','二','三','四','五','六'];
+
+  // Build lookup maps
+  var taskMap={};tasks.forEach(function(t){if(t.due_date){var d=t.due_date;if(!taskMap[d])taskMap[d]=[];taskMap[d].push(t)}});
+  var milestoneMap={};milestones.forEach(function(ml){if(ml.due_date){var d=ml.due_date;if(!milestoneMap[d])milestoneMap[d]=[];milestoneMap[d].push(ml)}});
+
+  var h='<div class="calendar">';
+  dayNames.forEach(function(dn){h+='<div class="day-header">'+dn+'</div>'});
+
+  // Empty cells before first day
+  for(var i=0;i<startDow;i++)h+='<div class="day other-month"></div>';
+
+  // Days
+  for(var d=1;d<=lastDay.getDate();d++){
+    var ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var isToday=ds===today;
+    var hasData=taskMap[ds]||milestoneMap[ds];
+    var cls='day'+(isToday?' today':'')+(hasData?' has-tasks':'');
+    h+='<div class="'+cls+'"><div class="day-num">'+d+'</div>';
+
+    if(milestoneMap[ds])milestoneMap[ds].forEach(function(ml){h+='<span class="day-dot dot-milestone" title="里程碑: '+esc(ml.name)+'"></span>'});
+    if(taskMap[ds])taskMap[ds].forEach(function(t){
+      var dotCls='dot-'+t.status;
+      if(t.status!=='done'&&ds<today)dotCls='dot-overdue';
+      h+='<span class="day-dot '+dotCls+'" title="'+esc(t.title)+'"></span>'
+    });
+    h+='</div>'
+  }
+
+  h+='</div><div class="text-dim mt-16" style="display:flex;gap:16px;justify-content:center">';
+  h+='<span>🟢 已完成</span><span>🔵 进行中</span><span>🟡 评审中</span><span>⚪ 待办</span><span>🔴 逾期</span><span>🟠 里程碑</span></div>';
+  return h
+}
+
+// ========== Task Detail ==========
+async function openTaskDetail(tid){
+  try{
+    var task=await apiGet('/api/tasks/'+tid),comments=await apiGet('/api/comments?task_id='+tid);await ensureMembers();
+    var h='<div class="flex-between mb-16"><h3>'+esc(task.title)+'</h3><button class="btn btn-outline btn-sm" onclick="closeTaskDetail()">✕</button></div>';
+    h+='<div class="form-group"><label>状态</label><select onchange="quickUpdateTask('+tid+',\'status\',this.value)">';
+    ['todo','in_progress','review','done'].forEach(function(s){h+='<option value="'+s+'"'+(task.status===s?' selected':'')+'>'+sLT(s)+'</option>'});
+    h+='</select></div>';
+    h+='<div class="form-group"><label>负责人</label><select onchange="quickUpdateTask('+tid+',\'assignee_id\',this.value)"><option value="">未分配</option>';
+    members.forEach(function(m){h+='<option value="'+m.id+'"'+(task.assignee_id===m.id?' selected':'')+'>'+esc(m.name)+'</option>'});
+    h+='</select></div>';
+    h+='<div class="form-group"><label>优先级</label><select onchange="quickUpdateTask('+tid+',\'priority\',this.value)">';
+    [1,2,3,4].forEach(function(i){h+='<option value="'+i+'"'+(task.priority===i?' selected':'')+'>'+PRIORITY_LABELS[i]+'</option>'});
+    h+='</select></div>';
+    h+='<div class="form-row"><div class="form-group"><label>预估工时 (h)</label><input type="number" step="0.5" value="'+(task.estimated_hours||'')+'" onchange="quickUpdateTask('+tid+',\'estimated_hours\',this.value)"></div>';
+    h+='<div class="form-group"><label>实际工时 (h)</label><input type="number" step="0.5" value="'+(task.actual_hours||0)+'" readonly></div></div>';
+    h+='<div class="form-group"><label>描述</label><p style="font-size:13px;color:var(--text-dim)">'+esc(task.description||'无描述')+'</p></div>';
+    h+='<div class="form-group"><label>截止日期</label><input type="date" value="'+(task.due_date||'')+'" onchange="quickUpdateTask('+tid+',\'due_date\',this.value)"></div>';
+    h+='<div class="form-group"><label>里程碑</label><p style="font-size:13px">'+esc(task.milestone_name||'未关联')+'</p></div>';
+    h+='<div class="flex-between" style="margin:16px 0"><button class="btn btn-outline btn-sm" onclick="showEditTaskForm('+tid+')">✎ 编辑</button><button class="btn btn-danger btn-sm" onclick="deleteTask('+tid+')">✕ 删除</button></div>';
+    h+='<h4 style="margin:18px 0 10px">工时记录</h4><div id="taskWorklogs"></div>';
+    h+='<button class="btn btn-outline btn-sm mt-16" onclick="showWorklogForm('+tid+')">+ 登记工时</button>';
+    h+='<h4 style="margin:18px 0 10px">评论 ('+comments.length+')</h4><div style="margin-bottom:10px">';
+    comments.forEach(function(c){h+='<div class="comment-item"><div class="cmt-author">'+esc(c.member_name)+' <span class="cmt-time">'+(c.created_at||'').substring(0,16)+'</span></div><div class="cmt-body">'+esc(c.content)+'</div></div>'});
+    h+='</div><div class="form-row"><input id="commentInput" placeholder="添加评论..." style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px"><button class="btn btn-primary btn-sm" id="commentSendBtn" onclick="addComment('+tid+')">发送</button></div>';
+    document.getElementById('taskDetail').innerHTML=h;document.getElementById('taskDetail').classList.add('show');loadTaskWorklogs(tid)
+  }catch(e){toast('加载任务详情失败: '+e.message)}
+}
+
+function closeTaskDetail(){document.getElementById('taskDetail').classList.remove('show')}
+
+async function quickUpdateTask(tid,field,value){
+  try{
+    var task=await apiGet('/api/tasks/'+tid);
+    if(value===''||value===null)task[field]=null;else if(['assignee_id','estimated_hours','priority'].indexOf(field)!==-1)task[field]=Number(value);else task[field]=value;
+    await apiPut('/api/tasks/'+tid,task);if(currentView==='project-detail'&&currentParam)navigate('project-detail',currentParam)
+  }catch(e){toast('更新失败: '+e.message)}
+}
+
+async function showEditTaskForm(tid){
+  try{
+    var task=await apiGet('/api/tasks/'+tid);await ensureMembers();var milestones=[];
+    try{milestones=await apiGet('/api/milestones?project_id='+task.project_id)}catch(e){}
+    var body='<div class="form-group"><label>任务标题</label><input name="title" value="'+esc(task.title||'')+'" required></div>';
+    body+='<div class="form-group"><label>描述</label><textarea name="description">'+esc(task.description||'')+'</textarea></div>';
+    body+='<div class="form-row"><div class="form-group"><label>状态</label><select name="status">';
+    ['todo','in_progress','review','done'].forEach(function(s){body+='<option value="'+s+'"'+(task.status===s?' selected':'')+'>'+sLT(s)+'</option>'});
+    body+='</select></div><div class="form-group"><label>优先级</label><select name="priority">';
+    [1,2,3,4].forEach(function(i){body+='<option value="'+i+'"'+(task.priority===i?' selected':'')+'>'+PRIORITY_LABELS[i]+'</option>'});
+    body+='</select></div></div><div class="form-row">';
+    body+='<div class="form-group"><label>负责人</label><select name="assignee_id"><option value="">未分配</option>';
+    members.forEach(function(m){body+='<option value="'+m.id+'"'+(task.assignee_id===m.id?' selected':'')+'>'+esc(m.name)+'</option>'});
+    body+='</select></div><div class="form-group"><label>预估工时 (h)</label><input name="estimated_hours" type="number" step="0.5" value="'+(task.estimated_hours||'')+'"></div></div>';
+    body+='<div class="form-row"><div class="form-group"><label>里程碑</label><select name="milestone_id"><option value="">无</option>';
+    milestones.forEach(function(m){body+='<option value="'+m.id+'"'+(task.milestone_id===m.id?' selected':'')+'>'+esc(m.name)+'</option>'});
+    body+='</select></div><div class="form-group"><label>截止日期</label><input name="due_date" type="date" value="'+(task.due_date||'')+'"></div></div>';
+    showModal('编辑任务',body,async function(){
+      var f=new FormData(document.getElementById('modalForm'));var d=cleanFormData(Object.fromEntries(f.entries()),['priority','assignee_id','milestone_id'],['estimated_hours']);
+      await apiPut('/api/tasks/'+tid,d);toast('任务已更新','success');openTaskDetail(tid);
+      if(currentView==='project-detail'&&currentParam)navigate('project-detail',currentParam)
+    })
+  }catch(e){toast('加载编辑表单失败: '+e.message)}
+}
+
+async function deleteTask(tid){
+  if(!confirm('确定删除此任务？'))return;
+  try{await apiDelete('/api/tasks/'+tid);closeTaskDetail();toast('任务已删除','success');if(currentView==='project-detail'&&currentParam)navigate('project-detail',currentParam)}catch(e){toast('删除失败: '+e.message)}
+}
+
+async function loadTaskWorklogs(tid){
+  try{var logs=await apiGet('/api/worklogs?task_id='+tid);var el=document.getElementById('taskWorklogs');if(!el)return;
+    if(logs.length===0)el.innerHTML='<div class="text-dim" style="font-size:12px">暂无记录</div>';
+    else{var h='';logs.forEach(function(l){h+='<div class="flex-between" style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span>'+esc(l.member_name)+' - '+esc(l.description||'无描述')+'</span><span>'+l.hours+'h · '+l.log_date+'</span></div>'});el.innerHTML=h}
+  }catch(e){}
+}
+
+async function showWorklogForm(tid){
+  await ensureMembers();var today=new Date().toISOString().substring(0,10);var myId=currentUser?currentUser.member_id:null;
+  var body='<div class="form-row"><div class="form-group"><label>成员</label><select name="member_id">';
+  members.forEach(function(m){body+='<option value="'+m.id+'"'+(myId===m.id?' selected':'')+'>'+esc(m.name)+'</option>'});
+  body+='</select></div><div class="form-group"><label>工时 (小时)</label><input name="hours" type="number" step="0.5" min="0.5" value="1" required></div></div>';
+  body+='<div class="form-row"><div class="form-group"><label>日期</label><input name="log_date" type="date" value="'+today+'"></div></div>';
+  body+='<div class="form-group"><label>说明</label><textarea name="description"></textarea></div>';
+  showModal('登记工时',body,async function(){
+    var f=new FormData(document.getElementById('modalForm'));var d=cleanFormData(Object.fromEntries(f.entries()),['member_id'],['hours']);d.task_id=tid;
+    await apiPost('/api/worklogs',d);toast('工时已登记','success');loadTaskWorklogs(tid)
+  })
+}
+
+async function addComment(tid){
+  var input=document.getElementById('commentInput'),content=input.value.trim();if(!content)return;
+  if(!currentUser||!currentUser.member_id){toast('当前用户未关联团队成员，无法发表评论');return}
+  var btn=document.getElementById('commentSendBtn');btn.disabled=true;btn.textContent='发送中...';
+  try{await apiPost('/api/comments',{task_id:tid,member_id:currentUser.member_id,content:content});input.value='';openTaskDetail(tid)}catch(e){toast('评论失败: '+e.message)}finally{btn.disabled=false;btn.textContent='发送'}
+}
+
+async function showTaskForm(pid){
+  await ensureMembers();var milestones=[];try{milestones=await apiGet('/api/milestones?project_id='+pid)}catch(e){}
+  var body='<div class="form-group"><label>任务标题</label><input name="title" required></div>';
+  body+='<div class="form-group"><label>描述</label><textarea name="description"></textarea></div>';
+  body+='<div class="form-row"><div class="form-group"><label>状态</label><select name="status">';
+  ['todo','in_progress','review','done'].forEach(function(s){body+='<option value="'+s+'">'+sLT(s)+'</option>'});
+  body+='</select></div><div class="form-group"><label>优先级</label><select name="priority">';
+  [1,2,3,4].forEach(function(i){body+='<option value="'+i+'"'+(i===2?' selected':'')+'>'+PRIORITY_LABELS[i]+'</option>'});
+  body+='</select></div></div><div class="form-row">';
+  body+='<div class="form-group"><label>负责人</label><select name="assignee_id"><option value="">未分配</option>';
+  members.forEach(function(m){body+='<option value="'+m.id+'">'+esc(m.name)+'</option>'});
+  body+='</select></div><div class="form-group"><label>预估工时 (h)</label><input name="estimated_hours" type="number" step="0.5"></div></div>';
+  body+='<div class="form-row"><div class="form-group"><label>里程碑</label><select name="milestone_id"><option value="">无</option>';
+  milestones.forEach(function(m){body+='<option value="'+m.id+'">'+esc(m.name)+'</option>'});
+  body+='</select></div><div class="form-group"><label>截止日期</label><input name="due_date" type="date"></div></div>';
+  showModal('新建任务',body,async function(){
+    var f=new FormData(document.getElementById('modalForm'));var d=cleanFormData(Object.fromEntries(f.entries()),['priority','assignee_id','milestone_id'],['estimated_hours']);d.project_id=pid;
+    await apiPost('/api/tasks',d);toast('任务已创建','success');navigate('project-detail',pid)
+  })
+}
+
+// ========== Costs ==========
+async function renderCosts(pg){
+  costsPage=pg||1;
+  try{
+    var prRes=await apiGet('/api/projects?per_page=100');projects=prRes.data||[];
+    var res=await apiGet('/api/costs?page='+costsPage+'&per_page=20'),costs=res.data||[],gt=0;costs.forEach(function(c){gt+=c.amount});
+    var h='<div class="flex-between mb-16"><h2>成本管理</h2><div style="display:flex;gap:8px">';
+    h+='<button class="btn btn-primary" onclick="showCostForm()">+ 记录成本</button>';
+    h+='<button class="btn btn-success btn-sm" onclick="window.open(\'/api/export/costs\')">📥 导出Excel</button></div></div>';
+    h+='<div class="stats" style="grid-template-columns:repeat(3,1fr)">';
+    h+=sC('📄',res.total||costs.length,'总笔数');h+=sC('💰',(gt/10000).toFixed(1)+'万','当前页总成本');
+    h+=sC('📊',Object.keys(costs.reduce(function(a,c){a[c.project_id]=1;return a},{})).length,'涉及项目数');h+='</div>';
+    h+='<table><thead><tr><th>日期</th><th>项目</th><th>类别</th><th>金额</th><th>说明</th><th>操作</th></tr></thead><tbody>';
+    if(costs.length===0)h+='<tr><td colspan="6" class="empty">暂无成本记录</td></tr>';
+    else costs.forEach(function(c){var p=projects.find(function(x){return x.id===c.project_id}),pn=p?p.name:'项目#'+c.project_id;
+      h+='<tr><td>'+c.cost_date+'</td><td>'+esc(pn)+'</td><td>'+cL(c.category)+'</td><td><strong>'+((c.amount||0)/10000).toFixed(2)+'万</strong></td><td>'+esc(c.description||'-')+'</td><td><button class="btn btn-danger btn-sm" onclick="deleteCost('+c.id+')">删除</button></td></tr>'});
+    h+='</tbody></table>'+pagHTML(costsPage,res.total,20,'renderCosts');
+    document.getElementById('main').innerHTML=h
+  }catch(e){showError('加载成本数据失败: '+e.message)}
+}
+
+async function showCostForm(){
+  if(projects.length===0){try{var r=await apiGet('/api/projects?per_page=100');projects=r.data||[]}catch(e){}}
+  var today=new Date().toISOString().substring(0,10);
+  var body='<div class="form-group"><label>项目</label><select name="project_id" required>';
+  projects.forEach(function(p){body+='<option value="'+p.id+'">'+esc(p.name)+'</option>'});body+='</select></div>';
+  body+='<div class="form-row"><div class="form-group"><label>类别</label><select name="category">';
+  ['labor','equipment','software','travel','other'].forEach(function(c){body+='<option value="'+c+'">'+cL(c)+'</option>'});
+  body+='</select></div><div class="form-group"><label>金额 (元)</label><input name="amount" type="number" step="0.01" required></div></div>';
+  body+='<div class="form-row"><div class="form-group"><label>日期</label><input name="cost_date" type="date" value="'+today+'"></div></div>';
+  body+='<div class="form-group"><label>说明</label><input name="description"></div>';
+  showModal('记录成本',body,async function(){
+    var f=new FormData(document.getElementById('modalForm'));var d=cleanFormData(Object.fromEntries(f.entries()),['project_id'],['amount']);
+    await apiPost('/api/costs',d);toast('成本已记录','success');renderCosts()
+  })
+}
+
+async function deleteCost(cid){if(!confirm('确定删除？'))return;try{await apiDelete('/api/costs/'+cid);toast('已删除','success');renderCosts()}catch(e){toast('删除失败: '+e.message)}}
+
+// ========== Members ==========
+async function renderMembers(){
+  try{members=await apiGet('/api/members');var h='<h2>团队成员</h2>';
+    h+='<table><thead><tr><th>姓名</th><th>邮箱</th><th>电话</th><th>部门</th><th>角色</th></tr></thead><tbody>';
+    members.forEach(function(m){h+='<tr><td><strong>'+esc(m.name)+'</strong></td><td>'+esc(m.email)+'</td><td>'+(m.phone||'-')+'</td><td>'+(m.department||'-')+'</td><td><span class="badge badge-'+m.role+'">'+rL(m.role)+'</span></td></tr>'});
+    h+='</tbody></table>';document.getElementById('main').innerHTML=h
+  }catch(e){showError('加载成员列表失败: '+e.message)}
+}
+
+// ========== Auth ==========
+async function checkAuth(){
+  try{var d=await apiGet('/api/auth/me');if(!d.logged_in){window.location.href='/login';return false}
+    currentUser=d;document.getElementById('sidebarUserName').textContent=d.display_name||d.username;
+    document.getElementById('sidebarUserRole').textContent=ROLE_MAP[d.role]||d.role;
+    document.getElementById('sidebarUserRole').className='badge badge-'+d.role;return true
+  }catch(e){window.location.href='/login';return false}
+}
+
+async function handleLogout(){try{await apiPost('/api/auth/logout')}catch(e){}window.location.href='/login'}
+
+// ========== Init ==========
+(async function(){var ok=await checkAuth();if(ok)renderDashboard()})();
+</script>
+</body>
+</html>
